@@ -36,18 +36,18 @@ if uploaded_file:
     image_input = preprocess(image).unsqueeze(0).to(device)
     text_inputs = clip.tokenize(CATEGORIES).to(device)
 
-    with torch.no_grad():
-        image_features = model.encode_image(image_input)
-        text_features = model.encode_text(text_inputs)
+   # Get similarity scores
+with torch.no_grad():
+    image_features = model.encode_image(image_input)
+    text_features = model.encode_text(text_input)
+    similarity = (image_features @ text_features.T).softmax(dim=-1)
 
-        logits = image_features @ text_features.T
-        probs = logits.softmax(dim=-1).cpu().numpy()[0]
+# Get top prediction
+best_index = similarity.argmax().item()
+best_label = labels[best_index]
+confidence = similarity[0][best_index].item() * 100
 
-    st.subheader("Classification Result")
+st.subheader("Prediction")
+st.success(f"🧠 This image is most likely: **{best_label.upper()}**")
+st.write(f"Confidence: **{confidence:.2f}%**")
 
-    top_idx = probs.argmax()
-    st.success(f"🧠 **Predicted Category:** {CATEGORIES[top_idx].replace('a photo of ', '').title()}")
-
-    st.subheader("Confidence Scores")
-    for label, prob in sorted(zip(CATEGORIES, probs), key=lambda x: x[1], reverse=True):
-        st.write(f"{label.replace('a photo of ', '').title()}: **{prob*100:.2f}%**")
