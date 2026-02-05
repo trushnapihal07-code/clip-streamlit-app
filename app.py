@@ -7,6 +7,7 @@ import streamlit as st
 def load_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model, preprocess = clip.load("ViT-B/32", device=device)
+    model.eval()
     return model, preprocess, device
 
 model, preprocess, device = load_model()
@@ -29,25 +30,26 @@ CATEGORIES = [
 
 uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
-if uploaded_file:
+if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="Uploaded Image", use_container_width=True)
 
     image_input = preprocess(image).unsqueeze(0).to(device)
     text_inputs = clip.tokenize(CATEGORIES).to(device)
 
-   # Get similarity scores
-with torch.no_grad():
-    image_features = model.encode_image(image_input)
-    text_features = model.encode_text(text_input)
-    similarity = (image_features @ text_features.T).softmax(dim=-1)
+    with torch.no_grad():
+        image_features = model.encode_image(image_input)
+        text_features = model.encode_text(text_inputs)
 
-# Get top prediction
-best_index = similarity.argmax().item()
-best_label = labels[best_index]
-confidence = similarity[0][best_index].item() * 100
+        image_features /= image_features.norm(dim=-1, keepdim=True)
+        text_features /= text_features.norm(dim=-1, keepdim=True)
 
-st.subheader("Prediction")
-st.success(f"🧠 This image is most likely: **{best_label.upper()}**")
-st.write(f"Confidence: **{confidence:.2f}%**")
+        similarity = (image_features @ text_features.T).softmax(dim=-1)
 
+    best_index = similarity.argmax(dim=-1).item()
+    best_label = CATEGORIES[best_index]
+    confidence = similarity[0][best_index].item() * 100
+
+    st.subheader("Prediction")
+    st.success(f"🧠 This image is most likely: **{best_label}**")
+    st.write(f"Confidence: **{confidence:.2f}%**")
